@@ -1,17 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Box, Paper, Alert, IconButton, Typography, CircularProgress } from '@mui/material';
-import { Settings as SettingsIcon, EmojiEmotions as EmojiIcon } from '@mui/icons-material';
-import { ChatMessage } from './components/ChatMessage';
-import { ChatInput } from './components/ChatInput';
-import { ChatSettings } from './components/ChatSettings';
-import { useChat } from './hooks/useChat';
-import { TypewriterEffect } from '../../components/TypewriterEffect';
-
-const WELCOME_MESSAGE = {
-  role: 'assistant' as const,
-  content: '👋 Hi there! I\'m your AI assistant. I can help you with various tasks, answer questions, or just chat. Feel free to start a conversation!',
-  timestamp: new Date()
-};
+import { Settings as SettingsIcon } from '@mui/icons-material';
+import { ChatMessage } from './ChatMessage';
+import { ChatInput } from './ChatInput';
+import { ChatSettings } from './ChatSettings';
+import { useChat } from '../hooks/useChat';
 
 interface SingleAIChatProps {
   selectedAI: string;
@@ -21,9 +14,7 @@ interface SingleAIChatProps {
 export const SingleAIChat: React.FC<SingleAIChatProps> = ({ selectedAI }) => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const {
     messages,
@@ -37,23 +28,12 @@ export const SingleAIChat: React.FC<SingleAIChatProps> = ({ selectedAI }) => {
     setError
   } = useChat({
     onTypingStart: () => setIsTyping(true),
-    onTypingEnd: () => {
-      setIsTyping(false);
-      // Auto focus input after response
-      setTimeout(() => inputRef.current?.focus(), 100);
-    }
+    onTypingEnd: () => setIsTyping(false)
   });
 
   const handleSend = async () => {
     if (!inputMessage.trim()) return;
-    setShowEmojiPicker(false);
     await sendMessage(inputMessage);
-  };
-
-  const handleEmojiSelect = (emoji: string) => {
-    setInputMessage(prev => prev + emoji);
-    setShowEmojiPicker(false);
-    inputRef.current?.focus();
   };
 
   useEffect(() => {
@@ -61,9 +41,6 @@ export const SingleAIChat: React.FC<SingleAIChatProps> = ({ selectedAI }) => {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages]);
-
-  // Show welcome message if no messages
-  const displayMessages = messages.length === 0 ? [WELCOME_MESSAGE] : messages;
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -105,7 +82,7 @@ export const SingleAIChat: React.FC<SingleAIChatProps> = ({ selectedAI }) => {
           },
         }}
       >
-        {displayMessages.map((message, index) => (
+        {messages.map((message, index) => (
           <ChatMessage
             key={index}
             message={message}
@@ -121,20 +98,14 @@ export const SingleAIChat: React.FC<SingleAIChatProps> = ({ selectedAI }) => {
         <div ref={messagesEndRef} />
       </Paper>
 
-      <Box sx={{ position: 'relative' }}>
-        <ChatInput
-          value={inputMessage}
-          onChange={setInputMessage}
-          onSend={handleSend}
-          onStop={stopGeneration}
-          isLoading={isLoading}
-          isConnected={isConnected}
-          onEmojiClick={() => setShowEmojiPicker(!showEmojiPicker)}
-          showEmojiPicker={showEmojiPicker}
-          onEmojiSelect={handleEmojiSelect}
-          inputRef={inputRef}
-        />
-      </Box>
+      <ChatInput
+        value={inputMessage}
+        onChange={setInputMessage}
+        onSend={handleSend}
+        onStop={stopGeneration}
+        isLoading={isLoading}
+        isConnected={isConnected}
+      />
 
       <ChatSettings
         open={settingsOpen}

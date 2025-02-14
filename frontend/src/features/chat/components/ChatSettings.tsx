@@ -1,17 +1,20 @@
 import React from 'react';
-import { Drawer, Box, Typography, List, ListItem, ListItemIcon, ListItemText, Divider } from '@mui/material';
+import { Drawer, Box, Typography, List, ListItem, ListItemIcon, ListItemText, Divider, ListItemButton } from '@mui/material';
 import { Settings as SettingsIcon } from '@mui/icons-material';
+import { AI_MODELS } from '../../../config/agentPersonalities';
 
 interface ChatSettingsProps {
   open: boolean;
   onClose: () => void;
   selectedModel: string;
+  onModelChange: (model: string) => void;
 }
 
 export const ChatSettings: React.FC<ChatSettingsProps> = ({
   open,
   onClose,
-  selectedModel
+  selectedModel,
+  onModelChange
 }) => {
   return (
     <Drawer
@@ -30,10 +33,37 @@ export const ChatSettings: React.FC<ChatSettingsProps> = ({
               <SettingsIcon />
             </ListItemIcon>
             <ListItemText 
-              primary="Selected Model"
-              secondary={selectedModel || 'Default'}
+              primary="Model Selection"
+              secondary="Choose your AI model"
             />
           </ListItem>
+          <Divider />
+          {Object.entries(AI_MODELS).map(([provider, info]) => (
+            <React.Fragment key={provider}>
+              <ListItem>
+                <ListItemText
+                  primary={info.name}
+                  sx={{ fontWeight: 'bold' }}
+                />
+              </ListItem>
+              {info.versions.map((version) => (
+                <ListItemButton
+                  key={version}
+                  selected={selectedModel === version}
+                  onClick={() => onModelChange(version)}
+                  sx={{ pl: 4 }}
+                >
+                  <ListItemText 
+                    primary={version}
+                    primaryTypographyProps={{
+                      variant: 'body2',
+                      color: selectedModel === version ? 'primary' : 'text.primary'
+                    }}
+                  />
+                </ListItemButton>
+              ))}
+            </React.Fragment>
+          ))}
         </List>
       </Box>
     </Drawer>

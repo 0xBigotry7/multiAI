@@ -1,6 +1,8 @@
-import React from 'react';
-import { Paper, TextField, IconButton } from '@mui/material';
-import { Send as SendIcon, Mic as MicIcon, Stop as StopIcon } from '@mui/icons-material';
+import React, { useRef } from 'react';
+import { Paper, TextField, IconButton, Box, Popover } from '@mui/material';
+import { Send as SendIcon, Stop as StopIcon, EmojiEmotions as EmojiIcon } from '@mui/icons-material';
+import data from '@emoji-mart/data';
+import Picker from '@emoji-mart/react';
 
 interface ChatInputProps {
   value: string;
@@ -9,6 +11,10 @@ interface ChatInputProps {
   onStop?: () => void;
   isLoading: boolean;
   isConnected: boolean;
+  onEmojiClick?: () => void;
+  showEmojiPicker?: boolean;
+  onEmojiSelect?: (emoji: string) => void;
+  inputRef?: React.RefObject<HTMLTextAreaElement>;
 }
 
 export const ChatInput: React.FC<ChatInputProps> = ({
@@ -17,11 +23,32 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   onSend,
   onStop,
   isLoading,
-  isConnected
+  isConnected,
+  onEmojiClick,
+  showEmojiPicker,
+  onEmojiSelect,
+  inputRef
 }) => {
+  const [anchorEl, setAnchorEl] = React.useState<HTMLButtonElement | null>(null);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSend();
+    if (value.trim() && isConnected && !isLoading) {
+      onSend();
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit(e);
+    }
+  };
+
+  const handleEmojiSelect = (emoji: any) => {
+    if (onEmojiSelect) {
+      onEmojiSelect(emoji.native);
+    }
   };
 
   return (
@@ -36,24 +63,59 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         bgcolor: 'background.paper',
       }}
     >
-      <TextField
-        fullWidth
-        variant="outlined"
-        placeholder="Type a message..."
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={!isConnected || isLoading}
-        size="small"
-      />
-      
       <IconButton
         color="primary"
-        disabled={!isConnected}
-        sx={{ flexShrink: 0 }}
+        onClick={(e) => {
+          setAnchorEl(e.currentTarget);
+          if (onEmojiClick) onEmojiClick();
+        }}
       >
-        <MicIcon />
+        <EmojiIcon />
       </IconButton>
 
+      <Popover
+        open={Boolean(anchorEl) && showEmojiPicker === true}
+        anchorEl={anchorEl}
+        onClose={() => {
+          setAnchorEl(null);
+          if (onEmojiClick) onEmojiClick();
+        }}
+        anchorOrigin={{
+          vertical: 'top',
+          horizontal: 'left',
+        }}
+        transformOrigin={{
+          vertical: 'bottom',
+          horizontal: 'left',
+        }}
+      >
+        <Box sx={{ p: 1 }}>
+          <Picker
+            data={data}
+            onEmojiSelect={handleEmojiSelect}
+            theme="dark"
+          />
+        </Box>
+      </Popover>
+      
+      <TextField
+        fullWidth
+        multiline
+        maxRows={4}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={handleKeyDown}
+        disabled={!isConnected || isLoading}
+        placeholder="Type a message..."
+        size="small"
+        inputRef={inputRef}
+        sx={{
+          '& .MuiInputBase-root': {
+            bgcolor: 'background.paper',
+          }
+        }}
+      />
+      
       {isLoading && onStop ? (
         <IconButton
           color="error"

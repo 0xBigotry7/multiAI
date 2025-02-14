@@ -2,7 +2,7 @@ import React from 'react';
 import { BottomNavigation as MuiBottomNavigation, BottomNavigationAction, Paper } from '@mui/material';
 import { Chat as ChatIcon, Group as GroupIcon, SportsEsports as GamesIcon } from '@mui/icons-material';
 
-export interface BottomNavigationProps {
+interface BottomNavigationProps {
   value: number;
   onChange: (event: React.SyntheticEvent, newValue: number) => void;
 }

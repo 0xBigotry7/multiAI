@@ -4,7 +4,7 @@ import CssBaseline from '@mui/material/CssBaseline';
 import { Box, Container, IconButton } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import ChatSimulator from './features/simulator/ChatSimulator';
-import SingleAIChat from './features/chat/SingleAIChat';
+import { SingleAIChat } from './features/chat/SingleAIChat';
 import { BottomNavigation } from './components/layout/BottomNavigation';
 import { LeftSidebar } from './components/layout/LeftSidebar';
 import { ChatHistoryItem } from './types/chat';

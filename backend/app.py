@@ -666,38 +666,32 @@ def handle_start_conversation(data):
 
 @socketio.on('singleAIMessage')
 def handle_single_ai_message(data):
-    """Handle single AI chat messages."""
+    """Handle single AI chat messages with streaming support."""
     message = data.get('message')
     
     if not message:
-        socketio.emit('error', {'message': 'No message provided'})
+        socketio.emit('error', {'message': 'No message provided'}, room=request.sid)
         return
         
     try:
-        # Always use gpt-4o-mini model for now
-        model_config = {
-            "api_key": os.getenv("OPENAI_API_KEY"),
-            "provider": "openai"
-        }
-            
-        # Create a single agent for response
+        # Create an agent for single AI chat
         agent = Agent(
-            role="AI Assistant",
-            goal="Provide helpful and accurate responses to user queries",
-            backstory="You are a helpful AI assistant engaging in a one-on-one conversation.",
-            verbose=True,
+            role='AI Assistant',
+            goal='Provide helpful and accurate responses to user queries',
+            backstory='You are a helpful AI assistant that provides clear and concise responses.',
             allow_delegation=False,
-            llm_model="gpt-4o-mini",
-            **model_config
+            verbose=True,
+            llm=MODEL_CONFIGS.get("default_model")
         )
         
-        # Create and execute task
+        # Create a task for the agent
         task = Task(
-            description=f"Respond to the user's message: {message}",
-            expected_output="A helpful and relevant response to the user's message.",
+            description=message,
+            expected_output="A helpful and clear response to the user's query.",
             agent=agent
         )
         
+        # Create a crew with just this agent
         crew = Crew(
             agents=[agent],
             tasks=[task],
@@ -705,16 +699,26 @@ def handle_single_ai_message(data):
             process=Process.sequential
         )
         
-        # Get response
-        result = crew.kickoff()
-        response = str(result).strip()
+        # Get the response
+        response = str(crew.kickoff()).strip()
         
-        # Emit response
-        socketio.emit('message', {'content': response})
+        # Simulate streaming by sending chunks of the response
+        chunk_size = 3  # Number of characters per chunk
+        chunks = [response[i:i+chunk_size] for i in range(0, len(response), chunk_size)]
         
+        for i, chunk in enumerate(chunks):
+            # Small delay between chunks to simulate typing
+            eventlet.sleep(0.03)  # 30ms delay between chunks
+            
+            # Send chunk with completion status
+            socketio.emit('messageStream', {
+                'content': chunk,
+                'isComplete': i == len(chunks) - 1
+            }, room=request.sid)
+            
     except Exception as error:
         print(f"Error in single AI conversation: {str(error)}")
-        socketio.emit('error', {'message': str(error)})
+        socketio.emit('error', {'message': str(error)}, room=request.sid)
 
 @socketio.on('stopGeneration')
 def handle_stop_generation():
