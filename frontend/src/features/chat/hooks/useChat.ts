@@ -3,13 +3,7 @@ import { Socket } from 'socket.io-client';
 import { Message } from '../../../types/chat';
 import { socketService } from '../../../services/socket/socket';
 import { SOCKET_EVENTS } from '../../../services/socket/events';
-import { chatPersistence } from '../../../services/chat/chatPersistence';
-
-interface RetryConfig {
-  maxRetries: number;
-  retryDelay: number;
-  currentRetry: number;
-}
+import { chatPersistence, ChatSession } from '../../../services/chat/chatPersistence';
 
 interface UseChatOptions {
   onMessage?: (message: string) => void;
@@ -25,30 +19,15 @@ export const useChat = (options: UseChatOptions = {}) => {
   const [isConnected, setIsConnected] = useState(false);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [sessionId, setSessionId] = useState<string>('');
-  const [sessions, setSessions] = useState<{ id: string; title: string; lastUpdated: string }[]>([]);
-  const [retryConfig, setRetryConfig] = useState<RetryConfig>({
-    maxRetries: 3,
-    retryDelay: 1000,
-    currentRetry: 0
-  });
-  const [isRetrying, setIsRetrying] = useState(false);
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [isTypingResponse, setIsTypingResponse] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<string>('');
 
   // Load sessions on mount
   useEffect(() => {
     const loadedSessions = chatPersistence.getAllSessions();
-    setSessions(loadedSessions.map(({ id, title, lastUpdated }) => ({ id, title, lastUpdated })));
+    setSessions(loadedSessions);
   }, []);
-
-  // Load session messages if sessionId is provided
-  useEffect(() => {
-    if (sessionId) {
-      const session = chatPersistence.getSession(sessionId);
-      if (session) {
-        setMessages(session.messages);
-      }
-    }
-  }, [sessionId]);
 
   // Initialize socket connection
   useEffect(() => {
@@ -73,16 +52,22 @@ export const useChat = (options: UseChatOptions = {}) => {
       }
       setIsTypingResponse(true);
 
-      // Create new message with the full content
       const newMessage: Message = {
         role: 'assistant',
         content: data.content,
         timestamp: new Date()
       };
-      setMessages(prev => [...prev, newMessage]);
+
+      setMessages(prev => {
+        const updated = [...prev, newMessage];
+        if (sessionId) {
+          chatPersistence.addMessageToSession(sessionId, newMessage);
+        }
+        return updated;
+      });
+
       setIsLoading(false);
 
-      // End typing after a delay based on message length
       setTimeout(() => {
         setIsTypingResponse(false);
         if (options.onTypingEnd) {
@@ -91,7 +76,7 @@ export const useChat = (options: UseChatOptions = {}) => {
         if (options.onMessage) {
           options.onMessage(data.content);
         }
-      }, Math.min(data.content.length * 30, 3000)); // Cap maximum delay at 3 seconds
+      }, Math.min(data.content.length * 30, 3000));
     });
 
     socket.on('messageStream', (data: { content: string; isComplete: boolean }) => {
@@ -100,14 +85,28 @@ export const useChat = (options: UseChatOptions = {}) => {
         const updated = [...prev];
         const lastMessage = updated[updated.length - 1];
         if (lastMessage && lastMessage.role === 'assistant') {
-          lastMessage.content += data.content;
+          // Update existing assistant message
+          const content = lastMessage.content;
+          const newContent = content + data.content;
+          lastMessage.content = newContent;
+
+          if (data.isComplete && sessionId) {
+            // Only store assistant message when complete
+            lastMessage.content = lastMessage.content.replace(/\s+/g, ' ').trim();
+            chatPersistence.addMessageToSession(sessionId, lastMessage);
+          }
         } else {
-          // If no existing message, create a new one
-          updated.push({
+          // Create new assistant message
+          const newMessage: Message = {
             role: 'assistant',
             content: data.content,
             timestamp: new Date()
-          });
+          };
+          updated.push(newMessage);
+          // Don't store yet - wait for complete flag
+          if (data.isComplete && sessionId) {
+            chatPersistence.addMessageToSession(sessionId, newMessage);
+          }
         }
         return updated;
       });
@@ -137,7 +136,7 @@ export const useChat = (options: UseChatOptions = {}) => {
       socket.off('messageStream');
       socket.off('error');
     };
-  }, [options]);
+  }, [options, sessionId]);
 
   const sendMessage = useCallback((message: string) => {
     if (!socket || !isConnected) {
@@ -155,21 +154,38 @@ export const useChat = (options: UseChatOptions = {}) => {
       timestamp: new Date()
     };
 
-    setMessages(prev => [...prev, newMessage]);
+    // Add message to state and persistence
+    setMessages(prev => {
+      const updated = [...prev, newMessage];
+      if (sessionId) {
+        // Store user message immediately
+        chatPersistence.addMessageToSession(sessionId, newMessage);
+      }
+      return updated;
+    });
+
     setInputMessage('');
     setIsLoading(true);
     setError(null);
     setIsTypingResponse(true);
 
-    socket.emit('singleAIMessage', { message });
-  }, [socket, isConnected, options]);
+    // Get context from previous messages
+    const context = sessionId ? chatPersistence.getSessionContext(sessionId) : '';
+
+    // Send message with context and model
+    socket.emit('singleAIMessage', { 
+      message,
+      context,
+      session_id: sessionId,
+      model: selectedModel
+    });
+  }, [socket, isConnected, options, sessionId, selectedModel]);
 
   const createNewSession = useCallback((modelId: string) => {
     const newSessionId = chatPersistence.createSession(modelId);
     setSessionId(newSessionId);
     setMessages([]);
-    const loadedSessions = chatPersistence.getAllSessions();
-    setSessions(loadedSessions.map(({ id, title, lastUpdated }) => ({ id, title, lastUpdated })));
+    setSessions(chatPersistence.getAllSessions());
     return newSessionId;
   }, []);
 
@@ -177,7 +193,16 @@ export const useChat = (options: UseChatOptions = {}) => {
     const session = chatPersistence.getSession(id);
     if (session) {
       setSessionId(id);
-      setMessages(session.messages);
+      // Convert string timestamps to Date objects
+      const messagesWithDates = session.messages.map(msg => ({
+        ...msg,
+        timestamp: new Date(msg.timestamp)
+      }));
+      setMessages(messagesWithDates);
+      setInputMessage(''); // Clear input message
+      setIsLoading(false); // Reset loading state
+      setIsTypingResponse(false); // Reset typing state
+      setError(null); // Clear any errors
     }
   }, []);
 
@@ -187,9 +212,18 @@ export const useChat = (options: UseChatOptions = {}) => {
       setSessionId('');
       setMessages([]);
     }
-    const loadedSessions = chatPersistence.getAllSessions();
-    setSessions(loadedSessions.map(({ id, title, lastUpdated }) => ({ id, title, lastUpdated })));
+    setSessions(chatPersistence.getAllSessions());
   }, [sessionId]);
+
+  const updateSessionTitle = useCallback((id: string, title: string) => {
+    chatPersistence.updateSessionTitle(id, title);
+    setSessions(chatPersistence.getAllSessions());
+  }, []);
+
+  const addSessionTag = useCallback((id: string, tag: string) => {
+    chatPersistence.addSessionTag(id, tag);
+    setSessions(chatPersistence.getAllSessions());
+  }, []);
 
   const stopGeneration = useCallback(() => {
     if (socket) {
@@ -214,7 +248,10 @@ export const useChat = (options: UseChatOptions = {}) => {
     createNewSession,
     loadSession,
     deleteSession,
-    isRetrying,
-    isTypingResponse
+    updateSessionTitle,
+    addSessionTag,
+    isTypingResponse,
+    selectedModel,
+    setSelectedModel
   };
 }; 

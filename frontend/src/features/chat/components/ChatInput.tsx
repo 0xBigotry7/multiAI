@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React from 'react';
 import { Paper, TextField, IconButton, Box, Popover } from '@mui/material';
 import { Send as SendIcon, Stop as StopIcon, EmojiEmotions as EmojiIcon } from '@mui/icons-material';
 import data from '@emoji-mart/data';

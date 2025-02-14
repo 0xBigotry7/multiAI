@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 
 interface TypewriterEffectProps {
   text: string;
@@ -15,6 +15,18 @@ export const TypewriterEffect: React.FC<TypewriterEffectProps> = ({
   const previousTextRef = useRef('');
   const timeoutRef = useRef<NodeJS.Timeout>();
   const lastUpdateTimeRef = useRef<number>(Date.now());
+
+  const typeText = useCallback((fullText: string, currentIndex: number = 0) => {
+    if (currentIndex <= fullText.length) {
+      setDisplayedText(fullText.slice(0, currentIndex));
+      
+      timeoutRef.current = setTimeout(() => {
+        typeText(fullText, currentIndex + 1);
+      }, speed);
+    } else if (onComplete) {
+      onComplete();
+    }
+  }, [speed, onComplete]);
 
   useEffect(() => {
     // If we received new text
@@ -42,19 +54,7 @@ export const TypewriterEffect: React.FC<TypewriterEffectProps> = ({
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [text]);
-
-  const typeText = (fullText: string, currentIndex: number = 0) => {
-    if (currentIndex <= fullText.length) {
-      setDisplayedText(fullText.slice(0, currentIndex));
-      
-      timeoutRef.current = setTimeout(() => {
-        typeText(fullText, currentIndex + 1);
-      }, speed);
-    } else if (onComplete) {
-      onComplete();
-    }
-  };
+  }, [text, displayedText, typeText]);
 
   // Handle component unmount
   useEffect(() => {

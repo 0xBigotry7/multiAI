@@ -34,6 +34,13 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     setIsComplete(true);
   };
 
+  const formatTimestamp = (timestamp: Date | string) => {
+    if (timestamp instanceof Date) {
+      return timestamp.toLocaleTimeString();
+    }
+    return new Date(timestamp).toLocaleTimeString();
+  };
+
   return (
     <Box
       sx={{
@@ -93,7 +100,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
               textAlign: 'right'
             }}
           >
-            {message.timestamp.toLocaleTimeString()}
+            {formatTimestamp(message.timestamp)}
           </Typography>
         </Box>
       </Box>

@@ -9,9 +9,10 @@ interface ChatSimulatorProps {
   mode: 'single' | 'multi';
   selectedAI: string;
   modelConfig: any;
+  onModelChange: (model: string) => void;
 }
 
-const ChatSimulator: React.FC<ChatSimulatorProps> = ({ mode, selectedAI, modelConfig }) => {
+const ChatSimulator: React.FC<ChatSimulatorProps> = ({ mode, selectedAI, modelConfig, onModelChange }) => {
   const [socket, setSocket] = useState(socketService.getSocket());
   const [prompt, setPrompt] = useState('');
   const [selectedPersonality, setSelectedPersonality] = useState(DEFAULT_CONFIG.name);

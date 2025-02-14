@@ -666,28 +666,48 @@ def handle_start_conversation(data):
 
 @socketio.on('singleAIMessage')
 def handle_single_ai_message(data):
-    """Handle single AI chat messages with streaming support."""
+    """Handle single AI chat messages with streaming support and context awareness."""
     message = data.get('message')
+    context = data.get('context', '')  # Get previous context if available
+    session_id = data.get('session_id', 'default')
+    model = data.get('model', MODEL_CONFIGS.get("default_model"))  # Get specified model or use default
     
     if not message:
         socketio.emit('error', {'message': 'No message provided'}, room=request.sid)
         return
         
     try:
-        # Create an agent for single AI chat
+        # Create system message with context and model info
+        system_message = """You are a helpful AI assistant that provides clear and concise responses.
+        You are currently running as the {model} model.
+        Maintain a natural, conversational tone while being informative and accurate.
+        
+        Previous conversation context:
+        {context}
+        
+        Remember the context above when responding to the user's next message.""".format(
+            model=model,
+            context=context
+        )
+        
+        # Get model configuration
+        model_config = get_model_config(model)
+        
+        # Create an agent for single AI chat with context
         agent = Agent(
             role='AI Assistant',
-            goal='Provide helpful and accurate responses to user queries',
-            backstory='You are a helpful AI assistant that provides clear and concise responses.',
+            goal='Provide helpful and contextually aware responses to user queries',
+            backstory=system_message,
             allow_delegation=False,
             verbose=True,
-            llm=MODEL_CONFIGS.get("default_model")
+            llm_model=model,  # Use the specified model
+            **model_config  # Add model-specific configuration
         )
         
         # Create a task for the agent
         task = Task(
             description=message,
-            expected_output="A helpful and clear response to the user's query.",
+            expected_output="A helpful and contextually relevant response to the user's query.",
             agent=agent
         )
         
@@ -702,13 +722,33 @@ def handle_single_ai_message(data):
         # Get the response
         response = str(crew.kickoff()).strip()
         
-        # Simulate streaming by sending chunks of the response
-        chunk_size = 3  # Number of characters per chunk
-        chunks = [response[i:i+chunk_size] for i in range(0, len(response), chunk_size)]
+        # Add model information to the response
+        response = f"[{model}] {response}"
         
+        # Split response into words instead of characters
+        words = response.split()
+        chunks = []
+        current_chunk = []
+        
+        # Group words into chunks
+        for word in words:
+            current_chunk.append(word)
+            if len(' '.join(current_chunk)) >= 10:  # Adjust chunk size based on word count
+                chunks.append(' '.join(current_chunk))
+                current_chunk = []
+        
+        # Add any remaining words
+        if current_chunk:
+            chunks.append(' '.join(current_chunk))
+        
+        # Stream the chunks
         for i, chunk in enumerate(chunks):
-            # Small delay between chunks to simulate typing
-            eventlet.sleep(0.03)  # 30ms delay between chunks
+            # Add space between chunks if not at the start
+            if i > 0:
+                chunk = ' ' + chunk
+            
+            # Small delay between chunks
+            eventlet.sleep(0.05)  # 50ms delay between chunks
             
             # Send chunk with completion status
             socketio.emit('messageStream', {

@@ -1,7 +1,7 @@
 export interface Message {
   role: 'user' | 'assistant';
   content: string;
-  timestamp: Date;
+  timestamp: Date | string;
 }
 
 export interface ChatHistoryItem {
