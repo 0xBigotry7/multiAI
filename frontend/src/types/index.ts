@@ -43,9 +43,6 @@ export interface ChatSettingsProps {
   onLanguageChange: (language: Locale) => void;
   isLoggedIn: boolean;
   username: string | null;
-  onLogin: () => void;
-  onSignup: () => void;
-  onLogout: () => void;
 }
 
 export interface ChatHistoryProps {

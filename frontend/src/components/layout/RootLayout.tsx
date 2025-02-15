@@ -1,37 +1,49 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Box, Paper, IconButton, Typography, BottomNavigation, BottomNavigationAction } from '@mui/material';
-import { Settings as SettingsIcon, Menu as MenuIcon, Chat as ChatIcon, Groups as GroupsIcon, Psychology as PsychologyIcon } from '@mui/icons-material';
+import { Box, IconButton, Typography, BottomNavigation, BottomNavigationAction } from '@mui/material';
+import { 
+  Settings as SettingsIcon, 
+  Menu as MenuIcon,
+  Chat as ChatIcon, 
+  Groups as GroupsIcon, 
+  Psychology as PsychologyIcon 
+} from '@mui/icons-material';
 import { useRouter, usePathname } from 'next/navigation';
 import { ChatSettings } from '../chat/ChatSettings';
+import { ChatHistory } from '../chat/ChatHistory';
 import { useTheme } from '@/lib/hooks/use-theme';
 import { useTranslations } from 'next-intl';
 import { type Locale } from '@/lib/i18n';
+import { useAuth } from '@/hooks/use-auth';
+import { useChat } from '@/lib/hooks/use-chat';
 
 interface RootLayoutProps {
   children: React.ReactNode;
 }
 
-export default function RootLayout({ children }: RootLayoutProps) {
+export function RootLayout({ children }: RootLayoutProps) {
   const router = useRouter();
   const pathname = usePathname();
   const t = useTranslations();
   const { mode: themeMode, setThemeMode } = useTheme();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [locale, setLocale] = useState<Locale>('en');
+  const { user, isAuthenticated } = useAuth();
+  const { 
+    sessions,
+    sessionId,
+    createNewSession,
+    loadSession,
+    deleteSession,
+  } = useChat();
 
   // Load preferred language on mount
   useEffect(() => {
     const savedLocale = localStorage.getItem('preferred_language');
     if (savedLocale && (savedLocale === 'en' || savedLocale === 'zh')) {
       setLocale(savedLocale as Locale);
-    } else {
-      // If no saved preference, use browser language
-      const browserLang = navigator.language.toLowerCase().split('-')[0];
-      const newLocale = browserLang === 'zh' ? 'zh' : 'en';
-      setLocale(newLocale);
-      localStorage.setItem('preferred_language', newLocale);
     }
   }, []);
 
@@ -70,6 +82,20 @@ export default function RootLayout({ children }: RootLayoutProps) {
     router.push(segments.join('/'));
   };
 
+  const handleNewChat = () => {
+    createNewSession('gpt-4-0125-preview');
+    setHistoryOpen(false);
+  };
+
+  const handleSessionSelect = (id: string) => {
+    loadSession(id);
+    setHistoryOpen(false);
+  };
+
+  const handleSessionDelete = (id: string) => {
+    deleteSession(id);
+  };
+
   return (
     <Box
       sx={{
@@ -81,8 +107,8 @@ export default function RootLayout({ children }: RootLayoutProps) {
       }}
     >
       {/* Top Bar */}
-      <Paper 
-        elevation={0}
+      <Box
+        component="header"
         sx={{
           position: 'fixed',
           top: 0,
@@ -97,12 +123,17 @@ export default function RootLayout({ children }: RootLayoutProps) {
           width: '100%',
           zIndex: 10,
           bgcolor: 'background.default',
+          backdropFilter: 'blur(8px)',
+          backgroundColor: themeMode === 'dark' 
+            ? 'rgba(9, 9, 11, 0.8)' 
+            : 'rgba(255, 255, 255, 0.8)',
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <IconButton
             color="primary"
-            onClick={() => {}}
+            onClick={() => isAuthenticated && setHistoryOpen(true)}
+            disabled={!isAuthenticated}
           >
             <MenuIcon />
           </IconButton>
@@ -118,10 +149,11 @@ export default function RootLayout({ children }: RootLayoutProps) {
             <SettingsIcon />
           </IconButton>
         </Box>
-      </Paper>
+      </Box>
 
       {/* Main Content */}
       <Box
+        component="main"
         sx={{
           flexGrow: 1,
           pt: '72px', // Height of top bar
@@ -148,6 +180,10 @@ export default function RootLayout({ children }: RootLayoutProps) {
           height: '56px',
           zIndex: 10,
           bgcolor: 'background.default',
+          backdropFilter: 'blur(8px)',
+          backgroundColor: themeMode === 'dark' 
+            ? 'rgba(9, 9, 11, 0.8)' 
+            : 'rgba(255, 255, 255, 0.8)',
           '& .MuiBottomNavigationAction-root': {
             transition: 'all 0.2s ease',
             '&:hover': {
@@ -177,7 +213,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
         />
       </BottomNavigation>
 
-      {/* Settings Drawer */}
+      {/* Drawers */}
       <ChatSettings
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
@@ -185,12 +221,21 @@ export default function RootLayout({ children }: RootLayoutProps) {
         onDarkModeChange={handleDarkModeChange}
         language={locale}
         onLanguageChange={handleLanguageChange}
-        isLoggedIn={false}
-        username={t('chat.you')}
-        onLogin={() => {}}
-        onSignup={() => {}}
-        onLogout={() => {}}
+        isLoggedIn={isAuthenticated}
+        username={user?.email || user?.name || t('chat.you')}
       />
+
+      {isAuthenticated && (
+        <ChatHistory
+          open={historyOpen}
+          onClose={() => setHistoryOpen(false)}
+          sessions={sessions}
+          currentSessionId={sessionId}
+          onSessionSelect={handleSessionSelect}
+          onNewChat={handleNewChat}
+          onDeleteSession={handleSessionDelete}
+        />
+      )}
     </Box>
   );
 } 

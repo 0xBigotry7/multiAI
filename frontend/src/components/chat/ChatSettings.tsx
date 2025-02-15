@@ -13,11 +13,12 @@ import {
   Divider,
   Avatar,
 } from '@mui/material';
-import { useAuthCore } from '@particle-network/auth-core-modal';
 import { ChatSettingsProps } from '@/types';
 import { useTranslations } from 'next-intl';
 import { languages, type Locale } from '@/lib/i18n';
 import { useRouter, usePathname } from 'next/navigation';
+import { useAuth } from '@/hooks/use-auth';
+import { Google as GoogleIcon, GitHub as GitHubIcon, Email as EmailIcon } from '@mui/icons-material';
 
 export const ChatSettings: React.FC<ChatSettingsProps> = ({
   open,
@@ -28,62 +29,37 @@ export const ChatSettings: React.FC<ChatSettingsProps> = ({
   onLanguageChange,
   isLoggedIn,
   username,
-  onLogin,
-  onSignup,
-  onLogout,
 }) => {
   const t = useTranslations();
-  const authCore = useAuthCore();
   const router = useRouter();
   const pathname = usePathname();
+  const { user, isAuthenticated, isLoading, login, logout } = useAuth();
 
   const handleLanguageChange = (newLocale: Locale) => {
-    // Update the local state
     onLanguageChange(newLocale);
-    
-    // Get the current path segments
     const segments = pathname.split('/');
-    
-    // Replace the locale segment (should be the first one after the initial slash)
     segments[1] = newLocale;
-    
-    // Construct the new path
-    const newPath = segments.join('/');
-    
-    // Navigate to the new locale path
-    router.push(newPath);
+    router.push(segments.join('/'));
   };
 
-  const handleConnect = async () => {
+  const handleLogin = async (provider?: string) => {
     try {
-      // First try to get existing user info
-      if (authCore.userInfo) {
-        console.log('Already connected:', authCore.userInfo);
-        onLogin();
-        return;
-      }
-
-      // If not connected, open the security modal
-      await authCore.openAccountAndSecurity();
-      
-      // Check if connection was successful
-      if (authCore.userInfo) {
-        console.log('Connection successful:', authCore.userInfo);
-        onLogin();
-      }
+      await login(provider);
     } catch (error) {
-      console.error('Connection failed:', error);
+      console.error('Login failed:', error);
     }
   };
 
   const handleLogout = async () => {
     try {
-      onLogout();
-      window.location.reload(); // Refresh to clear any cached state
+      await logout();
     } catch (error) {
       console.error('Logout failed:', error);
     }
   };
+
+  // Render the drawer content only when it's open
+  if (!open) return null;
 
   return (
     <Drawer
@@ -96,12 +72,21 @@ export const ChatSettings: React.FC<ChatSettingsProps> = ({
           p: 3,
         },
       }}
+      keepMounted={false}
+      SlideProps={{
+        appear: true,
+        mountOnEnter: true,
+        unmountOnExit: true,
+      }}
     >
       <Typography variant="h6" gutterBottom>
         {t('settings.title')}
       </Typography>
 
       <Box sx={{ mt: 3 }}>
+        <Typography variant="subtitle2" gutterBottom>
+          {t('settings.appearance.title')}
+        </Typography>
         <FormControlLabel
           control={
             <Switch
@@ -109,46 +94,48 @@ export const ChatSettings: React.FC<ChatSettingsProps> = ({
               onChange={(e) => onDarkModeChange(e.target.checked)}
             />
           }
-          label={t('settings.darkMode')}
+          label={t('settings.appearance.darkMode')}
         />
-      </Box>
-
-      <Box sx={{ mt: 3 }}>
-        <Typography variant="subtitle2" gutterBottom>
-          {t('settings.language')}
-        </Typography>
-        <Select
-          fullWidth
-          value={language}
-          onChange={(e) => handleLanguageChange(e.target.value as Locale)}
-          size="small"
-        >
-          {Object.entries(languages).map(([code, name]) => (
-            <MenuItem key={code} value={code}>
-              {name}
-            </MenuItem>
-          ))}
-        </Select>
+        <Box sx={{ mt: 2 }}>
+          <Typography variant="body2" gutterBottom>
+            {t('settings.appearance.language')}
+          </Typography>
+          <Select
+            fullWidth
+            value={language}
+            onChange={(e) => handleLanguageChange(e.target.value as Locale)}
+            size="small"
+          >
+            {Object.entries(languages).map(([code, name]) => (
+              <MenuItem key={code} value={code}>
+                {name}
+              </MenuItem>
+            ))}
+          </Select>
+        </Box>
       </Box>
 
       <Divider sx={{ my: 3 }} />
 
       <Box>
         <Typography variant="subtitle2" gutterBottom>
-          {t('settings.account')}
+          {t('settings.account.title')}
         </Typography>
-        {isLoggedIn ? (
+        {isAuthenticated ? (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Avatar sx={{ bgcolor: 'primary.main' }}>
-                {(username || t('chat.you')).charAt(0).toUpperCase()}
+              <Avatar 
+                src={user?.image || undefined}
+                sx={{ bgcolor: 'primary.main' }}
+              >
+                {(user?.name || t('chat.you')).charAt(0).toUpperCase()}
               </Avatar>
               <Box>
                 <Typography variant="subtitle2">
-                  {username || t('chat.you')}
+                  {user?.name || t('chat.you')}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Connected with Particle
+                  {user?.email}
                 </Typography>
               </Box>
             </Box>
@@ -163,24 +150,44 @@ export const ChatSettings: React.FC<ChatSettingsProps> = ({
                 textTransform: 'none',
               }}
             >
-              {t('settings.disconnect')}
+              {t('settings.account.signOut')}
             </Button>
           </Box>
         ) : (
-          <Box>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <Button
+              onClick={() => handleLogin('google')}
               variant="contained"
               color="primary"
               fullWidth
-              onClick={handleConnect}
-              sx={{
-                borderRadius: 2,
-                py: 1,
-                textTransform: 'none',
-              }}
+              startIcon={<GoogleIcon />}
+              sx={{ textTransform: 'none' }}
             >
-              {t('settings.connect')}
+              {t('settings.account.signInWithGoogle')}
             </Button>
+            
+            <Button
+              onClick={() => handleLogin('github')}
+              variant="contained"
+              color="primary"
+              fullWidth
+              startIcon={<GitHubIcon />}
+              sx={{ textTransform: 'none' }}
+            >
+              {t('settings.account.signInWithGithub')}
+            </Button>
+
+            <Button
+              onClick={() => handleLogin('email')}
+              variant="outlined"
+              color="primary"
+              fullWidth
+              startIcon={<EmailIcon />}
+              sx={{ textTransform: 'none' }}
+            >
+              {t('settings.account.signInWithEmail')}
+            </Button>
+            
             <Typography 
               variant="body2" 
               color="text.secondary" 
@@ -189,7 +196,7 @@ export const ChatSettings: React.FC<ChatSettingsProps> = ({
                 textAlign: 'center' 
               }}
             >
-              {t('settings.connectMessage')}
+              {t('settings.account.signInMessage')}
             </Typography>
           </Box>
         )}

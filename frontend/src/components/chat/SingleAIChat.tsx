@@ -10,11 +10,11 @@ import { ChatHistory } from './ChatHistory';
 import { useChat } from '@/lib/hooks/use-chat';
 import { useTheme } from '@/lib/hooks/use-theme';
 import { Message } from '@/types';
-import { useAuthCore } from '@particle-network/auth-core-modal';
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 import { languages, type Locale } from '@/lib/i18n';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/hooks/use-auth';
 
 // Add model options
 const AVAILABLE_MODELS = {
@@ -88,7 +88,7 @@ export const SingleAIChat: React.FC<SingleAIChatProps> = ({
   const [locale, setLocale] = useState<Locale>('en');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const authCore = useAuthCore();
+  const { user, isAuthenticated } = useAuth();
   const router = useRouter();
   const [currentTab, setCurrentTab] = useState(0);
 
@@ -195,18 +195,6 @@ export const SingleAIChat: React.FC<SingleAIChatProps> = ({
       setLocale(savedLocale as Locale);
     }
   }, []);
-
-  const handleLogin = () => {
-    // Login is handled by Particle
-  };
-
-  const handleSignup = () => {
-    // Signup is handled by Particle
-  };
-
-  const handleLogout = () => {
-    // Logout is handled by Particle
-  };
 
   // Display welcome message only when there are no messages and no active session
   const displayMessages = messages.length > 0 || sessionId ? messages : [{
@@ -557,11 +545,8 @@ export const SingleAIChat: React.FC<SingleAIChatProps> = ({
         onDarkModeChange={handleDarkModeChange}
         language={locale}
         onLanguageChange={handleLanguageChange}
-        isLoggedIn={!!authCore.userInfo}
-        username={(authCore.userInfo?.email || authCore.userInfo?.name || t('chat.you'))}
-        onLogin={handleLogin}
-        onSignup={handleSignup}
-        onLogout={handleLogout}
+        isLoggedIn={!!user}
+        username={user?.email || user?.name || t('chat.you')}
       />
 
       <ChatHistory

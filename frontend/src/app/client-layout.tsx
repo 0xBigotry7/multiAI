@@ -4,15 +4,7 @@ import * as React from 'react';
 import { ThemeProvider as NextThemesProvider } from 'next-themes';
 import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
 import { useTheme } from 'next-themes';
-import dynamic from 'next/dynamic';
-
-const ParticleAuthProvider = dynamic(
-  () => import('@/providers/particle-provider'),
-  { 
-    ssr: false,
-    loading: () => null
-  }
-) as any;
+import { SessionProvider } from 'next-auth/react';
 
 function ThemeWrapper({ children }: { children: React.ReactNode }) {
   const { resolvedTheme } = useTheme();
@@ -273,36 +265,17 @@ export default function ClientLayout({
   children: React.ReactNode;
 }) {
   return (
-    <NextThemesProvider
-      attribute="class"
-      defaultTheme="dark"
-      enableSystem
-      disableTransitionOnChange
-    >
-      <ParticleAuthProvider>
+    <SessionProvider>
+      <NextThemesProvider
+        attribute="class"
+        defaultTheme="dark"
+        enableSystem
+        disableTransitionOnChange
+      >
         <ThemeWrapper>
-          <main className="min-h-screen bg-background">
-            {/* Top Navigation Bar */}
-            <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-              <div className="container flex h-14 max-w-screen-2xl items-center">
-                {/* Add your header content here */}
-              </div>
-            </header>
-
-            {/* Main Content Area */}
-            <div className="flex-1 bg-background">
-              {children}
-            </div>
-
-            {/* Bottom Navigation Bar */}
-            <footer className="sticky bottom-0 z-50 w-full border-t border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-              <div className="container flex h-14 max-w-screen-2xl items-center">
-                {/* Add your footer content here */}
-              </div>
-            </footer>
-          </main>
+          {children}
         </ThemeWrapper>
-      </ParticleAuthProvider>
-    </NextThemesProvider>
+      </NextThemesProvider>
+    </SessionProvider>
   );
 } 

@@ -11,12 +11,20 @@
   },
   "settings": {
     "title": "Settings",
-    "darkMode": "Dark Mode",
-    "language": "Language",
-    "account": "Account",
-    "connect": "Connect Wallet",
-    "disconnect": "Disconnect",
-    "connectMessage": "Connect with your Particle wallet to access all features"
+    "appearance": {
+      "title": "Appearance",
+      "darkMode": "Dark Mode",
+      "language": "Language"
+    },
+    "account": {
+      "title": "Account",
+      "signIn": "Sign In",
+      "signOut": "Sign Out",
+      "signInWithGoogle": "Continue with Google",
+      "signInWithGithub": "Continue with GitHub",
+      "signInWithEmail": "Continue with Email",
+      "signInMessage": "Sign in to sync your chat history across devices"
+    }
   },
   "chat": {
     "thinking": "Thinking",
@@ -32,6 +40,8 @@
     "notConnected": "Not connected to server",
     "connectionFailed": "Connection failed. Please try again.",
     "messageFailed": "Failed to send message. Please try again.",
-    "invalidResponse": "Invalid response received. Please try again."
+    "invalidResponse": "Invalid response received. Please try again.",
+    "authError": "Authentication error. Please try again.",
+    "signInRequired": "Please sign in to continue."
   }
 } 

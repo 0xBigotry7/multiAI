@@ -11,12 +11,20 @@
   },
   "settings": {
     "title": "设置",
-    "darkMode": "深色模式",
-    "language": "语言",
-    "account": "账户",
-    "connect": "连接钱包",
-    "disconnect": "断开连接",
-    "connectMessage": "连接您的 Particle 钱包以访问所有功能"
+    "appearance": {
+      "title": "外观",
+      "darkMode": "深色模式",
+      "language": "语言"
+    },
+    "account": {
+      "title": "账户",
+      "signIn": "登录",
+      "signOut": "退出登录",
+      "signInWithGoogle": "使用 Google 账号继续",
+      "signInWithGithub": "使用 GitHub 账号继续",
+      "signInWithEmail": "使用邮箱继续",
+      "signInMessage": "登录以同步聊天记录"
+    }
   },
   "chat": {
     "thinking": "思考中",
@@ -32,6 +40,8 @@
     "notConnected": "未连接到服务器",
     "connectionFailed": "连接失败，请重试",
     "messageFailed": "消息发送失败，请重试",
-    "invalidResponse": "收到无效响应，请重试"
+    "invalidResponse": "收到无效响应，请重试",
+    "authError": "认证错误，请重试",
+    "signInRequired": "请先登录"
   }
 } 
