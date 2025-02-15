@@ -1,0 +1,37 @@
+{
+  "common": {
+    "newChat": "新对话",
+    "send": "发送",
+    "stop": "停止",
+    "loading": "加载中...",
+    "connecting": "正在连接服务器...",
+    "welcome": "👋 你好！我是由 {model} 驱动的 AI 助手。我能帮你什么？",
+    "typeMessage": "输入消息...",
+    "waitingResponse": "等待回应..."
+  },
+  "settings": {
+    "title": "设置",
+    "darkMode": "深色模式",
+    "language": "语言",
+    "account": "账户",
+    "connect": "连接钱包",
+    "disconnect": "断开连接",
+    "connectMessage": "连接您的 Particle 钱包以访问所有功能"
+  },
+  "chat": {
+    "thinking": "思考中",
+    "you": "你",
+    "assistant": "助手",
+    "singleAIChat": "单人对话",
+    "multiAIChat": "多人对话",
+    "interactiveScene": "互动场景"
+  },
+  "errors": {
+    "connectionLost": "与服务器的连接已断开",
+    "emptyMessage": "消息不能为空",
+    "notConnected": "未连接到服务器",
+    "connectionFailed": "连接失败，请重试",
+    "messageFailed": "消息发送失败，请重试",
+    "invalidResponse": "收到无效响应，请重试"
+  }
+} 

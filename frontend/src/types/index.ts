@@ -1,3 +1,5 @@
+import { type Locale } from '@/lib/i18n';
+
 // Chat Types
 export interface Message {
   role: 'user' | 'assistant';
@@ -17,7 +19,7 @@ export interface ChatSession {
 
 export interface ChatMessageProps {
   message: Message;
-  isTyping?: boolean;
+  isUser: boolean;
 }
 
 export interface ChatInputProps {
@@ -36,11 +38,11 @@ export interface ChatSettingsProps {
   open: boolean;
   onClose: () => void;
   darkMode: boolean;
-  onDarkModeChange: (isDark: boolean) => void;
-  language: string;
-  onLanguageChange: (lang: string) => void;
+  onDarkModeChange: (darkMode: boolean) => void;
+  language: Locale;
+  onLanguageChange: (language: Locale) => void;
   isLoggedIn: boolean;
-  username?: string;
+  username: string | null;
   onLogin: () => void;
   onSignup: () => void;
   onLogout: () => void;
@@ -50,7 +52,7 @@ export interface ChatHistoryProps {
   open: boolean;
   onClose: () => void;
   sessions: ChatSession[];
-  currentSessionId: string;
+  currentSessionId: string | null;
   onSessionSelect: (id: string) => void;
   onNewChat: () => void;
   onDeleteSession: (id: string) => void;

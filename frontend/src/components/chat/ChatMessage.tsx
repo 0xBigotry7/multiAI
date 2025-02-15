@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Box, Typography, CircularProgress, useTheme } from '@mui/material';
+import { Box, Typography, CircularProgress, useTheme, Avatar } from '@mui/material';
 import { ChatMessageProps } from '@/types';
+import Image from 'next/image';
 
 const LoadingDots: React.FC = () => {
   const [dots, setDots] = useState('');
@@ -71,39 +72,37 @@ const TypingAnimation: React.FC<{
   return <>{displayedText}</>;
 };
 
-export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isTyping }) => {
+const MODEL_LOGOS = {
+  'OpenAI': '/logos/openai-logo.png',
+  'DeepSeek': '/logos/deepseek-logo.png'
+};
+
+export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isUser }) => {
   const theme = useTheme();
-  const isAssistant = message.role === 'assistant';
   const isDark = theme.palette.mode === 'dark';
-  const [showCursor, setShowCursor] = useState(isTyping || (!message.isComplete && !message.isStreamed));
+  const [showCursor, setShowCursor] = useState(!message.isComplete && !message.isStreamed);
   const [isAnimating, setIsAnimating] = useState(!message.isComplete && !message.isStreamed);
 
   useEffect(() => {
-    setShowCursor(isTyping || (!message.isComplete && !message.isStreamed));
+    setShowCursor(!message.isComplete && !message.isStreamed);
     setIsAnimating(!message.isComplete && !message.isStreamed);
-  }, [isTyping, message.isComplete, message.isStreamed]);
+  }, [message.isComplete, message.isStreamed]);
 
-  const formatTimestamp = (date: Date) => {
-    // Ensure we have a valid Date object
-    const messageDate = date instanceof Date ? date : new Date(date);
-    
-    if (isNaN(messageDate.getTime())) {
-      return ''; // Return empty string for invalid dates
-    }
-
-    return new Intl.DateTimeFormat('default', {
-      hour: 'numeric',
-      minute: 'numeric',
-      hour12: true
-    }).format(messageDate);
+  const getProviderFromModel = (role: string) => {
+    if (role === 'user') return null;
+    // Default to OpenAI if no specific provider is found
+    return 'OpenAI';
   };
+
+  const provider = getProviderFromModel(message.role);
+  const logoSrc = provider ? MODEL_LOGOS[provider] : null;
 
   return (
     <Box
       sx={{
         display: 'flex',
         flexDirection: 'column',
-        alignItems: isAssistant ? 'flex-start' : 'flex-end',
+        alignItems: isUser ? 'flex-end' : 'flex-start',
         mb: 2,
         opacity: 0,
         animation: 'fadeIn 0.3s ease forwards',
@@ -115,87 +114,99 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isTyping }) =
     >
       <Box
         sx={{
-          position: 'relative',
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: 2,
+          flexDirection: isUser ? 'row-reverse' : 'row',
           maxWidth: '80%',
-          p: 2,
-          borderRadius: 2,
-          backgroundColor: isAssistant 
-            ? (isDark ? 'rgba(37, 99, 235, 0.1)' : 'primary.dark')
-            : (isDark ? 'rgba(75, 85, 99, 0.1)' : 'secondary.dark'),
-          color: isDark ? 'text.primary' : (isAssistant ? 'primary.contrastText' : 'secondary.contrastText'),
-          border: isDark ? '1px solid' : 'none',
-          borderColor: isAssistant 
-            ? 'rgba(37, 99, 235, 0.2)' 
-            : 'rgba(75, 85, 99, 0.2)',
-          boxShadow: isDark 
-            ? '0 2px 4px rgba(0,0,0,0.1)' 
-            : '0 2px 4px rgba(0,0,0,0.05)',
-          transition: theme.transitions.create(
-            ['background-color', 'border-color', 'box-shadow', 'transform'],
-            { duration: 200 }
-          ),
-          '&:hover': {
-            boxShadow: isDark 
-              ? '0 4px 6px rgba(0,0,0,0.2)' 
-              : '0 4px 6px rgba(0,0,0,0.1)',
-            transform: 'translateY(-1px)'
-          }
         }}
       >
-        <Typography 
-          sx={{ 
-            whiteSpace: 'pre-wrap',
-            lineHeight: 1.6,
-            letterSpacing: '0.01em',
-            ...(isDark && {
-              color: isAssistant 
-                ? 'rgba(255, 255, 255, 0.95)'
-                : 'rgba(255, 255, 255, 0.9)'
-            }),
-            position: 'relative',
-            '&::after': showCursor ? {
-              content: '"|"',
-              position: 'relative',
-              marginLeft: '2px',
-              animation: 'blink 1s step-start infinite',
-            } : {},
-            '@keyframes blink': {
-              '50%': {
-                opacity: 0,
-              },
-            },
-          }}
-        >
-          {isAssistant && message.content === '' && isTyping ? (
-            <LoadingDots />
-          ) : isAssistant && isAnimating ? (
-            <TypingAnimation 
-              text={message.content} 
-              speed={20}
-              onComplete={() => {
-                setIsAnimating(false);
-                setShowCursor(false);
-              }}
-            />
-          ) : (
-            message.content
-          )}
-        </Typography>
-        
-        {/* Timestamp */}
-        <Typography
-          variant="caption"
+        {/* Avatar */}
+        {isUser ? (
+          <Avatar
+            sx={{
+              bgcolor: 'primary.main',
+              width: 32,
+              height: 32,
+            }}
+          >
+            U
+          </Avatar>
+        ) : (
+          <Avatar
+            sx={{
+              bgcolor: 'white',
+              width: 32,
+              height: 32,
+              border: 1,
+              borderColor: 'divider',
+            }}
+          >
+            {logoSrc ? (
+              <Image
+                src={logoSrc}
+                alt="AI Provider Logo"
+                width={24}
+                height={24}
+                style={{ objectFit: 'contain' }}
+              />
+            ) : (
+              'A'
+            )}
+          </Avatar>
+        )}
+
+        {/* Message Bubble */}
+        <Box
           sx={{
-            position: 'absolute',
-            bottom: -20,
-            [isAssistant ? 'left' : 'right']: 2,
-            color: 'text.secondary',
-            fontSize: '0.75rem',
-            opacity: 0.7
+            p: 2,
+            borderRadius: 2,
+            backgroundColor: isUser 
+              ? (isDark ? 'primary.dark' : 'primary.main')
+              : (isDark ? 'background.paper' : 'grey.100'),
+            color: isUser 
+              ? 'primary.contrastText'
+              : 'text.primary',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+            position: 'relative',
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              top: 10,
+              [isUser ? 'right' : 'left']: -6,
+              width: 0,
+              height: 0,
+              borderStyle: 'solid',
+              borderWidth: isUser 
+                ? '6px 0 6px 6px'
+                : '6px 6px 6px 0',
+              borderColor: isUser
+                ? 'transparent transparent transparent ' + (isDark ? theme.palette.primary.dark : theme.palette.primary.main)
+                : 'transparent ' + (isDark ? theme.palette.background.paper : theme.palette.grey[100]) + ' transparent transparent',
+            }
           }}
         >
-          {formatTimestamp(message.timestamp)}
-        </Typography>
+          <Typography
+            variant="body1"
+            sx={{
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              position: 'relative',
+              '&::after': showCursor ? {
+                content: '"|"',
+                marginLeft: '2px',
+                animation: 'blink 1s step-start infinite',
+              } : {},
+              '@keyframes blink': {
+                '50%': {
+                  opacity: 0,
+                },
+              },
+            }}
+          >
+            {message.content}
+          </Typography>
+        </Box>
       </Box>
     </Box>
   );

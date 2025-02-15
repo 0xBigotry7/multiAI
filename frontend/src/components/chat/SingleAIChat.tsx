@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
-import { Box, Alert, IconButton, Typography, Select, MenuItem, ListSubheader, FormControl } from '@mui/material';
-import { Settings as SettingsIcon, Menu as MenuIcon } from '@mui/icons-material';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Box, Alert, IconButton, Typography, Select, MenuItem, ListSubheader, FormControl, Paper, BottomNavigation, BottomNavigationAction } from '@mui/material';
+import { Settings as SettingsIcon, Menu as MenuIcon, Chat as ChatIcon, Groups as GroupsIcon, Psychology as PsychologyIcon } from '@mui/icons-material';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput } from './ChatInput';
 import { ChatSettings } from './ChatSettings';
@@ -10,6 +10,11 @@ import { ChatHistory } from './ChatHistory';
 import { useChat } from '@/lib/hooks/use-chat';
 import { useTheme } from '@/lib/hooks/use-theme';
 import { Message } from '@/types';
+import { useAuthCore } from '@particle-network/auth-core-modal';
+import Image from 'next/image';
+import { useTranslations } from 'next-intl';
+import { languages, type Locale } from '@/lib/i18n';
+import { useRouter } from 'next/navigation';
 
 // Add model options
 const AVAILABLE_MODELS = {
@@ -24,36 +29,68 @@ const AVAILABLE_MODELS = {
   ]
 };
 
+const MODEL_LOGOS = {
+  'OpenAI': '/logos/openai-logo.png',
+  'DeepSeek': '/logos/deepseek-logo.png'
+};
+
 interface SingleAIChatProps {
   selectedAI: string;
   modelConfig: any;
   onModelChange: (model: string) => void;
 }
 
+type Provider = keyof typeof MODEL_LOGOS;
+
+const ModelMenuItem = ({ provider, model }: { provider: Provider; model: string }) => (
+  <MenuItem 
+    key={model} 
+    value={model}
+    sx={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: 2,
+      py: 1.5,
+    }}
+  >
+    <Box
+      sx={{
+        width: 24,
+        height: 24,
+        position: 'relative',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <Image
+        src={MODEL_LOGOS[provider]}
+        alt={`${provider} logo`}
+        width={24}
+        height={24}
+        style={{ objectFit: 'contain' }}
+      />
+    </Box>
+    <Typography>{model}</Typography>
+  </MenuItem>
+);
+
 export const SingleAIChat: React.FC<SingleAIChatProps> = ({ 
   selectedAI, 
   modelConfig,
   onModelChange 
 }) => {
+  const t = useTranslations();
   const { mode: themeMode, setThemeMode } = useTheme();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [language, setLanguage] = useState('en');
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [username, setUsername] = useState<string>();
+  const [locale, setLocale] = useState<Locale>('en');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-
-  // Get provider and model name for display
-  const getModelDisplay = (modelId: string) => {
-    for (const [provider, models] of Object.entries(AVAILABLE_MODELS)) {
-      if (models.includes(modelId)) {
-        return `${provider} / ${modelId}`;
-      }
-    }
-    return modelId;
-  };
+  const authCore = useAuthCore();
+  const router = useRouter();
+  const [currentTab, setCurrentTab] = useState(0);
 
   const {
     messages,
@@ -80,16 +117,45 @@ export const SingleAIChat: React.FC<SingleAIChatProps> = ({
     }
   });
 
-  const handleModelChange = (model: string) => {
-    if (model === selectedAI) return;
-    onModelChange(model);
-    setSelectedModel(model);
+  const scrollToBottom = useCallback(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, []);
+
+  // Scroll on new messages or when typing
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, isTypingResponse, scrollToBottom]);
+
+  // Get provider and model name for display
+  const getModelDisplay = (modelId: string) => {
+    for (const [provider, models] of Object.entries(AVAILABLE_MODELS)) {
+      if (models.includes(modelId)) {
+        return `${provider} / ${modelId}`;
+      }
+    }
+    return modelId;
+  };
+
+  const handleModelChange = (event: any) => {
+    const newModel = event.target.value;
+    if (newModel === selectedModel) return;
+    
+    // Update both the local state and parent component
+    setSelectedModel(newModel);
+    onModelChange(newModel);
+    
+    // If there's no active session, create one with the new model
+    if (!sessionId) {
+      createNewSession(newModel);
+    }
   };
 
   const handleSend = async () => {
     if (!inputMessage.trim()) return;
     if (!sessionId) {
-      createNewSession(selectedAI);
+      createNewSession(selectedModel);
     }
     setShowEmojiPicker(false);
     await sendMessage(inputMessage);
@@ -117,69 +183,83 @@ export const SingleAIChat: React.FC<SingleAIChatProps> = ({
     setThemeMode(isDark ? 'dark' : 'light');
   };
 
-  const handleLanguageChange = (lang: string) => {
-    setLanguage(lang);
-    // TODO: Implement language change logic
+  const handleLanguageChange = (newLocale: Locale) => {
+    setLocale(newLocale);
+    localStorage.setItem('preferred_language', newLocale);
   };
 
+  // Load preferred language on mount
+  useEffect(() => {
+    const savedLocale = localStorage.getItem('preferred_language');
+    if (savedLocale && Object.keys(languages).includes(savedLocale)) {
+      setLocale(savedLocale as Locale);
+    }
+  }, []);
+
   const handleLogin = () => {
-    // TODO: Implement login logic
-    console.log('Login clicked');
+    // Login is handled by Particle
   };
 
   const handleSignup = () => {
-    // TODO: Implement signup logic
-    console.log('Signup clicked');
+    // Signup is handled by Particle
   };
 
   const handleLogout = () => {
-    // TODO: Implement logout logic
-    setIsLoggedIn(false);
-    setUsername(undefined);
+    // Logout is handled by Particle
   };
-
-  useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages]);
 
   // Display welcome message only when there are no messages and no active session
   const displayMessages = messages.length > 0 || sessionId ? messages : [{
     role: 'assistant' as const,
-    content: `👋 Hi there! I'm your AI assistant powered by ${getModelDisplay(selectedAI)}. How can I help you today?`,
+    content: t('common.welcome', { model: getModelDisplay(selectedAI) }),
     timestamp: new Date()
   }];
 
+  const handleTabChange = (event: any, newValue: number) => {
+    setCurrentTab(newValue);
+    switch (newValue) {
+      case 0: // Single AI Chat
+        router.push('/chat');
+        break;
+      case 1: // Multi AI Chat
+        router.push('/simulator');
+        break;
+      case 2: // Interactive Scene
+        // Coming soon, stay on current page
+        break;
+    }
+  };
+
   return (
-    <Box 
-      sx={{ 
+    <Box
+      sx={{
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
+        width: '100%',
         overflow: 'hidden',
-        position: 'relative',
       }}
     >
       {/* Top Bar */}
-      <Box 
-        sx={{ 
-          py: 2, // Consistent padding
-          px: 3, // Slightly larger horizontal padding
+      <Paper 
+        elevation={0}
+        sx={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          p: 2,
           display: 'flex',
           alignItems: 'center',
+          justifyContent: 'space-between',
           borderBottom: 1,
           borderColor: 'divider',
-          bgcolor: 'background.paper',
-          flexShrink: 0,
+          width: '100%',
+          zIndex: 10,
+          bgcolor: 'background.default',
         }}
       >
-        {/* Left Section */}
-        <Box sx={{ 
-          display: 'flex',
-          alignItems: 'center',
-          minWidth: '2.5rem', // Use rem instead of px
-        }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <IconButton
             color="primary"
             onClick={() => setHistoryOpen(true)}
@@ -187,8 +267,6 @@ export const SingleAIChat: React.FC<SingleAIChatProps> = ({
             <MenuIcon />
           </IconButton>
         </Box>
-
-        {/* Center Section */}
         <Box sx={{ 
           flex: 1,
           display: 'flex',
@@ -197,20 +275,23 @@ export const SingleAIChat: React.FC<SingleAIChatProps> = ({
         }}>
           <FormControl 
             sx={{ 
-              maxWidth: '20rem', // Use rem for max-width
+              maxWidth: '20rem',
               width: '100%',
             }}
           >
             <Select
-              value={selectedAI}
-              onChange={(e) => handleModelChange(e.target.value)}
-              IconComponent={() => null}
+              value={selectedModel || selectedAI}
+              onChange={handleModelChange}
+              displayEmpty
               sx={{
                 '.MuiSelect-select': {
                   py: 1.5,
                   fontSize: '1rem',
                   textAlign: 'center',
-                  paddingRight: '14px !important',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 1,
                 },
                 '&.MuiOutlinedInput-root': {
                   backgroundColor: 'background.paper',
@@ -230,6 +311,36 @@ export const SingleAIChat: React.FC<SingleAIChatProps> = ({
                 },
                 borderRadius: 1,
               }}
+              renderValue={(selected) => {
+                const provider = Object.entries(AVAILABLE_MODELS).find(([_, models]) => 
+                  models.includes(selected)
+                )?.[0] as keyof typeof MODEL_LOGOS;
+                return (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {provider && (
+                      <Box
+                        sx={{
+                          width: 20,
+                          height: 20,
+                          position: 'relative',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Image
+                          src={MODEL_LOGOS[provider]}
+                          alt={`${provider} logo`}
+                          width={20}
+                          height={20}
+                          style={{ objectFit: 'contain' }}
+                        />
+                      </Box>
+                    )}
+                    {selected}
+                  </Box>
+                );
+              }}
               MenuProps={{
                 PaperProps: {
                   sx: {
@@ -244,24 +355,73 @@ export const SingleAIChat: React.FC<SingleAIChatProps> = ({
               }}
             >
               {Object.entries(AVAILABLE_MODELS).map(([provider, models]) => [
-                <ListSubheader key={provider}>{provider}</ListSubheader>,
-                ...models.map(model => (
-                  <MenuItem key={model} value={model}>
-                    {model}
+                <ListSubheader 
+                  key={provider}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                    py: 1,
+                  }}
+                >
+                  <Box
+                    sx={{
+                      width: 24,
+                      height: 24,
+                      position: 'relative',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Image
+                      src={MODEL_LOGOS[provider as keyof typeof MODEL_LOGOS]}
+                      alt={`${provider} logo`}
+                      width={24}
+                      height={24}
+                      style={{ objectFit: 'contain' }}
+                    />
+                  </Box>
+                  {provider}
+                </ListSubheader>,
+                models.map(model => (
+                  <MenuItem 
+                    key={model} 
+                    value={model}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 2,
+                      py: 1.5,
+                      pl: 4,
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        width: 24,
+                        height: 24,
+                        position: 'relative',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Image
+                        src={MODEL_LOGOS[provider as keyof typeof MODEL_LOGOS]}
+                        alt={`${provider} logo`}
+                        width={24}
+                        height={24}
+                        style={{ objectFit: 'contain' }}
+                      />
+                    </Box>
+                    <Typography>{model}</Typography>
                   </MenuItem>
                 ))
               ])}
             </Select>
           </FormControl>
         </Box>
-
-        {/* Right Section */}
-        <Box sx={{ 
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'flex-end',
-          minWidth: '2.5rem', // Use rem instead of px
-        }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <IconButton
             color="primary"
             onClick={() => setSettingsOpen(true)}
@@ -269,18 +429,21 @@ export const SingleAIChat: React.FC<SingleAIChatProps> = ({
             <SettingsIcon />
           </IconButton>
         </Box>
-      </Box>
+      </Paper>
 
       {/* Messages Area - Scrollable */}
       <Box
         sx={{
           flexGrow: 1,
           overflow: 'auto',
+          width: '100%',
           display: 'flex',
           flexDirection: 'column',
           gap: 2,
           px: 3,
           py: 2,
+          mt: '72px', // Height of top bar
+          mb: '180px', // Increased to accommodate both input and bottom nav
         }}
       >
         {error && (
@@ -288,7 +451,7 @@ export const SingleAIChat: React.FC<SingleAIChatProps> = ({
             severity="error" 
             onClose={() => setError(null)}
           >
-            {error}
+            {t(`errors.${error}`)}
           </Alert>
         )}
 
@@ -296,7 +459,7 @@ export const SingleAIChat: React.FC<SingleAIChatProps> = ({
           <Alert 
             severity="warning"
           >
-            Connecting to server...
+            {t('common.connecting')}
           </Alert>
         )}
 
@@ -304,21 +467,28 @@ export const SingleAIChat: React.FC<SingleAIChatProps> = ({
           <ChatMessage
             key={index}
             message={msg}
-            isTyping={isTypingResponse && index === messages.length - 1}
+            isUser={msg.role === 'user'}
           />
         ))}
         
-        <div ref={messagesEndRef} />
+        {/* Scroll anchor */}
+        <Box ref={messagesEndRef} sx={{ float: 'left', clear: 'both' }} />
       </Box>
 
       {/* Chat Input */}
-      <Box 
-        sx={{ 
+      <Paper
+        elevation={0}
+        sx={{
+          position: 'fixed',
+          bottom: '56px', // Height of bottom navigation
+          left: 0,
+          right: 0,
           p: 2,
           borderTop: 1,
           borderColor: 'divider',
-          bgcolor: 'background.paper',
-          flexShrink: 0,
+          width: '100%',
+          zIndex: 10,
+          bgcolor: 'background.default',
         }}
       >
         <ChatInput
@@ -332,7 +502,52 @@ export const SingleAIChat: React.FC<SingleAIChatProps> = ({
           onEmojiSelect={handleEmojiSelect}
           inputRef={inputRef}
         />
-      </Box>
+      </Paper>
+
+      {/* Bottom Navigation */}
+      <BottomNavigation
+        value={currentTab}
+        onChange={handleTabChange}
+        showLabels
+        sx={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          borderTop: 1,
+          borderColor: 'divider',
+          width: '100%',
+          height: '56px',
+          zIndex: 10,
+          bgcolor: 'background.default',
+          '& .MuiBottomNavigationAction-root': {
+            transition: 'all 0.2s ease',
+            '&:hover': {
+              transform: 'translateY(-2px)',
+              color: 'text.secondary',
+            },
+            '&.Mui-selected': {
+              color: 'primary.main',
+              '& .MuiSvgIcon-root': {
+                transform: 'scale(1.1)',
+              },
+            },
+          },
+        }}
+      >
+        <BottomNavigationAction 
+          label="Single AI Chat" 
+          icon={<ChatIcon />} 
+        />
+        <BottomNavigationAction 
+          label="Multi AI Chat" 
+          icon={<GroupsIcon />} 
+        />
+        <BottomNavigationAction 
+          label="Interactive Scene" 
+          icon={<PsychologyIcon />} 
+        />
+      </BottomNavigation>
 
       {/* Drawers */}
       <ChatSettings
@@ -340,10 +555,10 @@ export const SingleAIChat: React.FC<SingleAIChatProps> = ({
         onClose={() => setSettingsOpen(false)}
         darkMode={themeMode === 'dark'}
         onDarkModeChange={handleDarkModeChange}
-        language={language}
+        language={locale}
         onLanguageChange={handleLanguageChange}
-        isLoggedIn={isLoggedIn}
-        username={username}
+        isLoggedIn={!!authCore.userInfo}
+        username={(authCore.userInfo?.email || authCore.userInfo?.name || t('chat.you'))}
         onLogin={handleLogin}
         onSignup={handleSignup}
         onLogout={handleLogout}

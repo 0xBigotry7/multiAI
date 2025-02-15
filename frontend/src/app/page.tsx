@@ -57,6 +57,7 @@ export default function Home() {
         display: 'flex',
         flexDirection: 'column',
         height: '100vh',
+        width: '100vw',
         overflow: 'hidden',
       }}
     >
@@ -67,19 +68,10 @@ export default function Home() {
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
+          width: '100%',
         }}
       >
-        <Container 
-          maxWidth="md" 
-          sx={{ 
-            flexGrow: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-          }}
-        >
-          {renderCurrentTab()}
-        </Container>
+        {renderCurrentTab()}
       </Box>
 
       {/* Bottom Navigation */}
@@ -88,9 +80,10 @@ export default function Home() {
         onChange={(event, newValue) => setCurrentTab(newValue)}
         showLabels
         sx={{
+          width: '100%',
           borderTop: 1,
           borderColor: 'divider',
-          flexShrink: 0, // Prevent bottom nav from shrinking
+          flexShrink: 0,
           '& .MuiBottomNavigationAction-root': {
             transition: 'all 0.2s ease',
             '&:hover': {

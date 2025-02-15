@@ -3,6 +3,7 @@ export interface SimulatorMessage {
   content: string;
   name: string;
   timestamp: Date;
+  isComplete?: boolean;
 }
 
 export interface AgentPersonality {
@@ -29,4 +30,6 @@ export interface ConversationConfig {
   personality: AgentConfig;
   modelA: string;
   modelB: string;
+  mode: 'single' | 'multi';
+  is_continuation?: boolean;
 } 

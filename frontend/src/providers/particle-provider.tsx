@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { AuthCoreContextProvider } from '@particle-network/auth-core-modal';
 import { Ethereum } from '@particle-network/chains';
+import { AuthType } from '@particle-network/auth-core';
 
 if (!process.env.NEXT_PUBLIC_PARTICLE_PROJECT_ID || 
     !process.env.NEXT_PUBLIC_PARTICLE_CLIENT_KEY || 
@@ -11,10 +12,17 @@ if (!process.env.NEXT_PUBLIC_PARTICLE_PROJECT_ID ||
 }
 
 const config = {
-  projectId: process.env.NEXT_PUBLIC_PARTICLE_PROJECT_ID,
-  clientKey: process.env.NEXT_PUBLIC_PARTICLE_CLIENT_KEY,
-  appId: process.env.NEXT_PUBLIC_PARTICLE_APP_ID,
+  projectId: process.env.NEXT_PUBLIC_PARTICLE_PROJECT_ID as string,
+  clientKey: process.env.NEXT_PUBLIC_PARTICLE_CLIENT_KEY as string,
+  appId: process.env.NEXT_PUBLIC_PARTICLE_APP_ID as string,
   chains: [Ethereum],
+  authTypes: [AuthType.email, AuthType.google, AuthType.github],
+  modalTheme: 'dark',
+  appearance: 'dark',
+  promptSettingConfig: {
+    promptPaymentPasswordSettingWhenSign: 1,
+    promptMasterPasswordSettingWhenLogin: 1,
+  },
 };
 
 export default function ParticleAuthProvider({
@@ -23,7 +31,7 @@ export default function ParticleAuthProvider({
   children: React.ReactNode;
 }) {
   return (
-    <AuthCoreContextProvider options={config} theme="dark">
+    <AuthCoreContextProvider options={config}>
       {children}
     </AuthCoreContextProvider>
   );

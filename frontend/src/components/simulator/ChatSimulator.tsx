@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Box, TextField, Button, Paper, Typography, CircularProgress, Alert, LinearProgress, Select, MenuItem, FormControl, InputLabel, ListSubheader } from '@mui/material';
+import React, { useState, useEffect } from 'react';
+import { Box, TextField, Button, Paper, Typography, Alert, LinearProgress, Select, MenuItem, FormControl, InputLabel, ListSubheader } from '@mui/material';
 import { socketService } from '@/lib/socket/socket';
 import { SOCKET_EVENTS } from '@/lib/socket/events';
 import { AGENT_CONFIGS, DEFAULT_CONFIG, AI_MODELS } from '@/lib/config/agentPersonalities';
@@ -14,34 +14,25 @@ interface ChatSimulatorProps {
   onModelChange: (model: string) => void;
 }
 
+interface StreamMessage {
+  content: string;
+  isComplete: boolean;
+}
+
+interface ExtendedSimulatorMessage extends SimulatorMessage {
+  isComplete?: boolean;
+}
+
 export const ChatSimulator: React.FC<ChatSimulatorProps> = ({ mode, selectedAI, modelConfig, onModelChange }) => {
   const [socket, setSocket] = useState(socketService.getSocket());
-  const [prompt, setPrompt] = useState('');
-  const [selectedPersonality, setSelectedPersonality] = useState(DEFAULT_CONFIG.name);
-  const [selectedModelA, setSelectedModelA] = useState("gpt-4o-mini");
-  const [selectedModelB, setSelectedModelB] = useState("gpt-4o-mini");
-  const [messages, setMessages] = useState<SimulatorMessage[]>([]);
-  const [messageQueue, setMessageQueue] = useState<SimulatorMessage[]>([]);
-  const [isProcessingQueue, setIsProcessingQueue] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [currentRound, setCurrentRound] = useState(0);
-  const [totalRounds, setTotalRounds] = useState(0);
-  const [error, setError] = useState<string | null>(null);
+  const [messages, setMessages] = useState<ExtendedSimulatorMessage[]>([]);
   const [isConnected, setIsConnected] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [isStopRequested, setIsStopRequested] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const [canContinue, setCanContinue] = useState(false);
   const [isStopped, setIsStopped] = useState(false);
-
-  const scrollToBottom = useCallback(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, []);
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, scrollToBottom]);
+  const [currentRound, setCurrentRound] = useState(0);
+  const [totalRounds, setTotalRounds] = useState(0);
 
   useEffect(() => {
     const socket = socketService.connect();
@@ -64,11 +55,36 @@ export const ChatSimulator: React.FC<ChatSimulatorProps> = ({ mode, selectedAI, 
       setIsLoading(false);
     });
 
-    socket.on(SOCKET_EVENTS.CHAT_MESSAGE, (message: SimulatorMessage) => {
-      setMessageQueue(prev => [...prev, message]);
+    socket.on(SOCKET_EVENTS.MESSAGE_STREAM, (data: StreamMessage) => {
+      setMessages(prev => {
+        const updated = [...prev];
+        const lastMessage = updated[updated.length - 1];
+        
+        if (lastMessage && lastMessage.role === 'assistant' && !lastMessage.isComplete) {
+          // Update existing message
+          return updated.map(msg => 
+            msg === lastMessage 
+              ? { ...msg, content: msg.content + data.content, isComplete: data.isComplete }
+              : msg
+          );
+        } else {
+          // Add new message
+          return [...updated, {
+            role: 'assistant',
+            content: data.content,
+            name: 'AI',
+            timestamp: new Date(),
+            isComplete: data.isComplete
+          }];
+        }
+      });
+
+      if (data.isComplete) {
+        setIsLoading(false);
+      }
     });
 
-    socket.on(SOCKET_EVENTS.CHAT_COMPLETE, () => {
+    socket.on(SOCKET_EVENTS.CONVERSATION_COMPLETE, () => {
       setIsLoading(false);
       setCanContinue(true);
       setIsStopped(false);
@@ -82,30 +98,18 @@ export const ChatSimulator: React.FC<ChatSimulatorProps> = ({ mode, selectedAI, 
     setSocket(socket);
 
     return () => {
-      socket.disconnect();
+      socket.off(SOCKET_EVENTS.CONNECT);
+      socket.off(SOCKET_EVENTS.DISCONNECT);
+      socket.off(SOCKET_EVENTS.ERROR);
+      socket.off(SOCKET_EVENTS.MESSAGE_STREAM);
+      socket.off(SOCKET_EVENTS.CONVERSATION_COMPLETE);
+      socket.off(SOCKET_EVENTS.ROUND_UPDATE);
     };
   }, []);
 
-  useEffect(() => {
-    const processNextMessage = async () => {
-      if (messageQueue.length === 0 || isProcessingQueue) return;
-      
-      setIsProcessingQueue(true);
-      const message = messageQueue[0];
-      
-      setMessages(prev => [...prev, message]);
-      setMessageQueue(prev => prev.slice(1));
-      
-      await new Promise(resolve => setTimeout(resolve, 500)); // Add delay between messages
-      setIsProcessingQueue(false);
-    };
-
-    processNextMessage();
-  }, [messageQueue, isProcessingQueue]);
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!prompt.trim() || isLoading) return;
+    if (isLoading) return;
 
     setIsLoading(true);
     setMessages([]);
@@ -117,24 +121,28 @@ export const ChatSimulator: React.FC<ChatSimulatorProps> = ({ mode, selectedAI, 
 
     const config: ConversationConfig = {
       mode,
-      prompt: prompt.trim(),
-      personality: AGENT_CONFIGS.find(c => c.name === selectedPersonality) || DEFAULT_CONFIG,
-      modelA: selectedModelA,
-      modelB: selectedModelB,
+      prompt: '',
+      personality: AGENT_CONFIGS.find(c => c.name === DEFAULT_CONFIG.name) || DEFAULT_CONFIG,
+      modelA: selectedAI,
+      modelB: selectedAI
     };
 
-    socket.emit(SOCKET_EVENTS.START_CHAT, config);
+    socket.emit(SOCKET_EVENTS.START_CONVERSATION, config);
   };
 
   const handleStopConversation = () => {
-    setIsStopRequested(true);
-    socket.emit(SOCKET_EVENTS.STOP_CHAT);
+    socket.emit(SOCKET_EVENTS.STOP_CONVERSATION);
     setIsStopped(true);
   };
 
   const handleContinueConversation = () => {
     setCanContinue(false);
-    socket.emit(SOCKET_EVENTS.CONTINUE_CHAT);
+    socket.emit(SOCKET_EVENTS.START_CONVERSATION, {
+      mode,
+      selectedAI,
+      modelConfig,
+      is_continuation: true
+    });
   };
 
   return (
@@ -143,101 +151,51 @@ export const ChatSimulator: React.FC<ChatSimulatorProps> = ({ mode, selectedAI, 
         <form onSubmit={handleSubmit}>
           <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
             <FormControl fullWidth>
-              <InputLabel>Personality</InputLabel>
+              <InputLabel>Model</InputLabel>
               <Select
-                value={selectedPersonality}
-                label="Personality"
-                onChange={(e) => setSelectedPersonality(e.target.value)}
+                value={selectedAI}
+                label="Model"
+                onChange={(e) => onModelChange(e.target.value)}
                 disabled={isLoading}
               >
-                {AGENT_CONFIGS.map(config => (
-                  <MenuItem key={config.name} value={config.name}>
-                    {config.name}
-                  </MenuItem>
-                ))}
+                {Object.entries(AI_MODELS).map(([provider, models]) => [
+                  <ListSubheader key={provider}>{provider}</ListSubheader>,
+                  models.map(model => (
+                    <MenuItem key={model} value={model}>
+                      {model}
+                    </MenuItem>
+                  ))
+                ])}
               </Select>
             </FormControl>
-
-            {mode === 'multi' && (
-              <>
-                <FormControl fullWidth>
-                  <InputLabel>Model A</InputLabel>
-                  <Select
-                    value={selectedModelA}
-                    label="Model A"
-                    onChange={(e) => setSelectedModelA(e.target.value)}
-                    disabled={isLoading}
-                  >
-                    {Object.entries(AI_MODELS).map(([provider, models]) => [
-                      <ListSubheader key={provider}>{provider}</ListSubheader>,
-                      ...models.map(model => (
-                        <MenuItem key={model} value={model}>
-                          {model}
-                        </MenuItem>
-                      ))
-                    ])}
-                  </Select>
-                </FormControl>
-
-                <FormControl fullWidth>
-                  <InputLabel>Model B</InputLabel>
-                  <Select
-                    value={selectedModelB}
-                    label="Model B"
-                    onChange={(e) => setSelectedModelB(e.target.value)}
-                    disabled={isLoading}
-                  >
-                    {Object.entries(AI_MODELS).map(([provider, models]) => [
-                      <ListSubheader key={provider}>{provider}</ListSubheader>,
-                      ...models.map(model => (
-                        <MenuItem key={model} value={model}>
-                          {model}
-                        </MenuItem>
-                      ))
-                    ])}
-                  </Select>
-                </FormControl>
-              </>
-            )}
           </Box>
 
           <Box sx={{ display: 'flex', gap: 2 }}>
-            <TextField
-              fullWidth
-              multiline
-              rows={2}
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder="Enter a conversation prompt..."
-              disabled={isLoading}
-            />
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <Button
+              variant="contained"
+              type="submit"
+              disabled={isLoading || !isConnected}
+            >
+              Start
+            </Button>
+            {isLoading && !isStopped && (
               <Button
-                variant="contained"
-                type="submit"
-                disabled={!prompt.trim() || isLoading || !isConnected}
+                variant="outlined"
+                color="secondary"
+                onClick={handleStopConversation}
               >
-                Start
+                Stop
               </Button>
-              {isLoading && !isStopped && (
-                <Button
-                  variant="outlined"
-                  color="secondary"
-                  onClick={handleStopConversation}
-                >
-                  Stop
-                </Button>
-              )}
-              {canContinue && (
-                <Button
-                  variant="outlined"
-                  color="primary"
-                  onClick={handleContinueConversation}
-                >
-                  Continue
-                </Button>
-              )}
-            </Box>
+            )}
+            {canContinue && (
+              <Button
+                variant="outlined"
+                color="primary"
+                onClick={handleContinueConversation}
+              >
+                Continue
+              </Button>
+            )}
           </Box>
         </form>
       </Paper>
@@ -302,7 +260,6 @@ export const ChatSimulator: React.FC<ChatSimulatorProps> = ({ mode, selectedAI, 
             </Typography>
           </Box>
         ))}
-        <div ref={messagesEndRef} />
       </Box>
     </Box>
   );

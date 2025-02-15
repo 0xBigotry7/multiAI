@@ -1,0 +1,31 @@
+{
+  "common": {
+    "newChat": "New Chat",
+    "send": "Send",
+    "stop": "Stop",
+    "loading": "Loading...",
+    "connecting": "Connecting to server...",
+    "welcome": "👋 Hi there! I'm your AI assistant powered by {model}. How can I help you today?",
+    "typeMessage": "Type a message...",
+    "waitingResponse": "Waiting for response..."
+  },
+  "settings": {
+    "title": "Settings",
+    "darkMode": "Dark Mode",
+    "language": "Language",
+    "account": "Account",
+    "connect": "Connect Wallet",
+    "disconnect": "Disconnect",
+    "connectMessage": "Connect with your Particle wallet to access all features"
+  },
+  "chat": {
+    "thinking": "Thinking",
+    "you": "You",
+    "assistant": "Assistant"
+  },
+  "errors": {
+    "connectionLost": "Lost connection to server",
+    "emptyMessage": "Message cannot be empty",
+    "notConnected": "Not connected to server"
+  }
+} 
