@@ -1,9 +1,16 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { Box, Typography, CircularProgress, useTheme, Avatar } from '@mui/material';
+import React, { useState, useEffect } from 'react';
+import { Box, Typography, Avatar, useTheme } from '@mui/material';
 import { ChatMessageProps } from '@/types';
 import Image from 'next/image';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import rehypeHighlight from 'rehype-highlight';
+import 'katex/dist/katex.min.css';
+import 'highlight.js/styles/github-dark.css';
 
 const LoadingDots: React.FC = () => {
   const [dots, setDots] = useState('');
@@ -13,7 +20,7 @@ const LoadingDots: React.FC = () => {
   useEffect(() => {
     const interval = setInterval(() => {
       setDots(prev => (prev.length >= 3 ? '' : prev + '.'));
-    }, 300); // Faster animation
+    }, 300);
 
     return () => clearInterval(interval);
   }, []);
@@ -27,49 +34,9 @@ const LoadingDots: React.FC = () => {
       fontStyle: 'italic'
     }}>
       <span>Thinking</span>
-      <span style={{ 
-        minWidth: '24px',
-        display: 'inline-block'
-      }}>
-        {dots}
-      </span>
+      <span style={{ minWidth: '24px', display: 'inline-block' }}>{dots}</span>
     </Box>
   );
-};
-
-const TypingAnimation: React.FC<{ 
-  text: string; 
-  onComplete?: () => void;
-  speed?: number;
-}> = ({ text, onComplete, speed = 20 }) => {
-  const [displayedText, setDisplayedText] = useState('');
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const timeoutRef = useRef<NodeJS.Timeout>();
-
-  useEffect(() => {
-    // Start fresh with new text
-    setDisplayedText('');
-    setCurrentIndex(0);
-  }, [text]);
-
-  useEffect(() => {
-    if (currentIndex < text.length) {
-      timeoutRef.current = setTimeout(() => {
-        setDisplayedText(text.slice(0, currentIndex + 1));
-        setCurrentIndex(prev => prev + 1);
-      }, speed);
-    } else {
-      onComplete?.();
-    }
-
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-    };
-  }, [currentIndex, text, speed, onComplete]);
-
-  return <>{displayedText}</>;
 };
 
 const MODEL_LOGOS = {
@@ -90,7 +57,6 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isUser }) => 
 
   const getProviderFromModel = (role: string) => {
     if (role === 'user') return null;
-    // Default to OpenAI if no specific provider is found
     return 'OpenAI';
   };
 
@@ -181,31 +147,126 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isUser }) => 
                 ? '6px 0 6px 6px'
                 : '6px 6px 6px 0',
               borderColor: isUser
-                ? 'transparent transparent transparent ' + (isDark ? theme.palette.primary.dark : theme.palette.primary.main)
-                : 'transparent ' + (isDark ? theme.palette.background.paper : theme.palette.grey[100]) + ' transparent transparent',
+                ? `transparent transparent transparent ${isDark ? theme.palette.primary.dark : theme.palette.primary.main}`
+                : `transparent ${isDark ? theme.palette.background.paper : theme.palette.grey[100]} transparent transparent`,
             }
           }}
         >
-          <Typography
-            variant="body1"
-            sx={{
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-              position: 'relative',
-              '&::after': showCursor ? {
-                content: '"|"',
-                marginLeft: '2px',
-                animation: 'blink 1s step-start infinite',
-              } : {},
-              '@keyframes blink': {
-                '50%': {
-                  opacity: 0,
+          {isUser ? (
+            <Typography
+              variant="body1"
+              sx={{
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+              }}
+            >
+              {message.content}
+            </Typography>
+          ) : (
+            <Box
+              sx={{
+                '& .markdown-content': {
+                  '& > :first-child': { mt: 0 },
+                  '& > :last-child': { mb: 0 },
+                  '& h1, & h2, & h3, & h4, & h5, & h6': {
+                    mt: 2,
+                    mb: 1,
+                    fontWeight: 600,
+                    lineHeight: 1.25,
+                  },
+                  '& p': {
+                    my: 1,
+                    lineHeight: 1.6,
+                  },
+                  '& a': {
+                    color: 'primary.main',
+                    textDecoration: 'none',
+                    '&:hover': {
+                      textDecoration: 'underline',
+                    },
+                  },
+                  '& code': {
+                    p: 0.5,
+                    borderRadius: 1,
+                    bgcolor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+                    fontFamily: 'monospace',
+                  },
+                  '& pre': {
+                    p: 1.5,
+                    borderRadius: 1,
+                    bgcolor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+                    overflow: 'auto',
+                    '& code': {
+                      p: 0,
+                      bgcolor: 'transparent',
+                    },
+                  },
+                  '& ul, & ol': {
+                    pl: 3,
+                    my: 1,
+                  },
+                  '& li': {
+                    mb: 0.5,
+                  },
+                  '& blockquote': {
+                    my: 1,
+                    pl: 2,
+                    borderLeft: 4,
+                    borderColor: isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.1)',
+                    fontStyle: 'italic',
+                  },
+                  '& table': {
+                    borderCollapse: 'collapse',
+                    width: '100%',
+                    my: 2,
+                  },
+                  '& th, & td': {
+                    border: 1,
+                    borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+                    p: 1,
+                  },
+                  '& img': {
+                    maxWidth: '100%',
+                    height: 'auto',
+                    borderRadius: 1,
+                  },
                 },
-              },
-            }}
-          >
-            {message.content}
-          </Typography>
+                position: 'relative',
+                '&::after': showCursor ? {
+                  content: '"|"',
+                  position: 'absolute',
+                  right: -2,
+                  animation: 'blink 1s step-start infinite',
+                } : {},
+                '@keyframes blink': {
+                  '50%': {
+                    opacity: 0,
+                  },
+                },
+              }}
+              className="markdown-content"
+            >
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm, remarkMath]}
+                rehypePlugins={[rehypeKatex, rehypeHighlight]}
+                components={{
+                  // Override components for better styling
+                  p: ({ children }) => (
+                    <Typography variant="body1" component="p">
+                      {children}
+                    </Typography>
+                  ),
+                  a: ({ href, children }) => (
+                    <a href={href} target="_blank" rel="noopener noreferrer">
+                      {children}
+                    </a>
+                  ),
+                }}
+              >
+                {message.content}
+              </ReactMarkdown>
+            </Box>
+          )}
         </Box>
       </Box>
     </Box>

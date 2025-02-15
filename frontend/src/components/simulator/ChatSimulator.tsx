@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Box, TextField, Button, Paper, Typography, Alert, LinearProgress, Select, MenuItem, FormControl, InputLabel, ListSubheader } from '@mui/material';
 import { socketService } from '@/lib/socket/socket';
 import { SOCKET_EVENTS } from '@/lib/socket/events';
@@ -24,88 +24,82 @@ interface ExtendedSimulatorMessage extends SimulatorMessage {
 }
 
 export const ChatSimulator: React.FC<ChatSimulatorProps> = ({ mode, selectedAI, modelConfig, onModelChange }) => {
-  const [socket, setSocket] = useState(socketService.getSocket());
+  const socket = useRef(socketService.getSocket());
   const [messages, setMessages] = useState<ExtendedSimulatorMessage[]>([]);
-  const [isConnected, setIsConnected] = useState(false);
+  const [isConnected, setIsConnected] = useState(socket.current.connected);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [canContinue, setCanContinue] = useState(false);
   const [isStopped, setIsStopped] = useState(false);
   const [currentRound, setCurrentRound] = useState(0);
   const [totalRounds, setTotalRounds] = useState(0);
+  const currentMessageRef = useRef<string>('');
 
   useEffect(() => {
-    const socket = socketService.connect();
+    const currentSocket = socket.current;
 
-    socket.on(SOCKET_EVENTS.CONNECT, () => {
+    // Clean up any existing listeners
+    currentSocket.removeAllListeners();
+
+    const handleConnect = () => {
       console.log('Connected to server');
       setIsConnected(true);
       setError(null);
-    });
+    };
 
-    socket.on(SOCKET_EVENTS.DISCONNECT, () => {
+    const handleDisconnect = () => {
       console.log('Disconnected from server');
       setIsConnected(false);
       setError('Lost connection to server');
-    });
+    };
 
-    socket.on(SOCKET_EVENTS.ERROR, (error: string) => {
+    const handleError = (error: string) => {
       console.error('Socket error:', error);
       setError(error);
       setIsLoading(false);
-    });
+    };
 
-    socket.on(SOCKET_EVENTS.MESSAGE_STREAM, (data: StreamMessage) => {
-      setMessages(prev => {
-        const updated = [...prev];
-        const lastMessage = updated[updated.length - 1];
-        
-        if (lastMessage && lastMessage.role === 'assistant' && !lastMessage.isComplete) {
-          // Update existing message
-          return updated.map(msg => 
-            msg === lastMessage 
-              ? { ...msg, content: msg.content + data.content, isComplete: data.isComplete }
-              : msg
-          );
-        } else {
-          // Add new message
-          return [...updated, {
-            role: 'assistant',
-            content: data.content,
-            name: 'AI',
-            timestamp: new Date(),
-            isComplete: data.isComplete
-          }];
-        }
-      });
-
+    const handleMessageStream = (data: StreamMessage) => {
+      console.log('Received message stream:', data);
+      
       if (data.isComplete) {
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: data.content,
+          name: 'AI',
+          timestamp: new Date(),
+          isComplete: true
+        }]);
         setIsLoading(false);
       }
-    });
+    };
 
-    socket.on(SOCKET_EVENTS.CONVERSATION_COMPLETE, () => {
+    const handleConversationComplete = () => {
       setIsLoading(false);
       setCanContinue(true);
       setIsStopped(false);
-    });
+      currentMessageRef.current = '';
+    };
 
-    socket.on(SOCKET_EVENTS.ROUND_UPDATE, ({ current, total }: { current: number, total: number }) => {
+    const handleRoundUpdate = ({ current, total }: { current: number, total: number }) => {
       setCurrentRound(current);
       setTotalRounds(total);
-    });
-
-    setSocket(socket);
-
-    return () => {
-      socket.off(SOCKET_EVENTS.CONNECT);
-      socket.off(SOCKET_EVENTS.DISCONNECT);
-      socket.off(SOCKET_EVENTS.ERROR);
-      socket.off(SOCKET_EVENTS.MESSAGE_STREAM);
-      socket.off(SOCKET_EVENTS.CONVERSATION_COMPLETE);
-      socket.off(SOCKET_EVENTS.ROUND_UPDATE);
     };
-  }, []);
+
+    // Set up listeners
+    currentSocket.on('connect', handleConnect);
+    currentSocket.on('disconnect', handleDisconnect);
+    currentSocket.on(SOCKET_EVENTS.ERROR, handleError);
+    currentSocket.on(SOCKET_EVENTS.MESSAGE_STREAM, handleMessageStream);
+    currentSocket.on(SOCKET_EVENTS.CONVERSATION_COMPLETE, handleConversationComplete);
+    currentSocket.on(SOCKET_EVENTS.ROUND_UPDATE, handleRoundUpdate);
+
+    // Cleanup function
+    return () => {
+      currentSocket.removeAllListeners();
+      currentMessageRef.current = '';
+    };
+  }, []); // Empty dependency array means this effect runs only once
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,6 +112,7 @@ export const ChatSimulator: React.FC<ChatSimulatorProps> = ({ mode, selectedAI, 
     setIsStopped(false);
     setCurrentRound(0);
     setTotalRounds(0);
+    currentMessageRef.current = '';
 
     const config: ConversationConfig = {
       mode,
@@ -127,17 +122,17 @@ export const ChatSimulator: React.FC<ChatSimulatorProps> = ({ mode, selectedAI, 
       modelB: selectedAI
     };
 
-    socket.emit(SOCKET_EVENTS.START_CONVERSATION, config);
+    socket.current.emit(SOCKET_EVENTS.START_CONVERSATION, config);
   };
 
   const handleStopConversation = () => {
-    socket.emit(SOCKET_EVENTS.STOP_CONVERSATION);
+    socket.current.emit(SOCKET_EVENTS.STOP_CONVERSATION);
     setIsStopped(true);
   };
 
   const handleContinueConversation = () => {
     setCanContinue(false);
-    socket.emit(SOCKET_EVENTS.START_CONVERSATION, {
+    socket.current.emit(SOCKET_EVENTS.START_CONVERSATION, {
       mode,
       selectedAI,
       modelConfig,
