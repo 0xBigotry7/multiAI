@@ -1,8 +1,10 @@
+// Chat Types
 export interface Message {
-  role: 'user' | 'assistant' | 'system';
+  role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
-  name?: string;
+  isComplete?: boolean;
+  isStreamed?: boolean;
 }
 
 export interface ChatSession {
@@ -25,7 +27,7 @@ export interface ChatInputProps {
   onStop: () => void;
   isLoading: boolean;
   showEmojiPicker: boolean;
-  onEmojiClick: () => void;
+  onEmojiPickerToggle: () => void;
   onEmojiSelect: (emoji: string) => void;
   inputRef: React.RefObject<HTMLTextAreaElement>;
 }
@@ -45,31 +47,38 @@ export interface ChatSettingsProps {
 }
 
 export interface ChatHistoryProps {
+  open: boolean;
+  onClose: () => void;
   sessions: ChatSession[];
   currentSessionId: string;
   onSessionSelect: (id: string) => void;
-  onSessionDelete: (id: string) => void;
   onNewChat: () => void;
+  onDeleteSession: (id: string) => void;
 }
 
-export interface ChatHistoryItem {
-  id: string;
-  title: string;
-  timestamp: string;
-}
-
-export interface ModelConfig {
+// Simulator Types
+export interface SimulatorMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
   name: string;
-  icon: string;
-  models: {
-    [key: string]: {
-      api_key: string;
-      provider: string;
-      endpoint?: string;
-    };
-  };
-  features: {
-    voice_input: boolean;
-    streaming: boolean;
-  };
+  timestamp: Date;
+}
+
+export interface AgentConfig {
+  name: string;
+  description: string;
+  systemPrompt: string;
+  temperature: number;
+  maxTokens: number;
+  topP: number;
+  frequencyPenalty: number;
+  presencePenalty: number;
+}
+
+export interface ConversationConfig {
+  prompt: string;
+  personality: AgentConfig;
+  modelA: string;
+  modelB: string;
+  mode: 'single' | 'multi';
 } 

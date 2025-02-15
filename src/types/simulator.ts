@@ -1,8 +1,10 @@
 export interface SimulatorMessage {
-  role: 'system' | 'user' | 'assistant';
-  content: string;
-  name: string;
-  timestamp: Date;
+  round: number;
+  agent: string;
+  message: string;
+  isTyping?: boolean;
+  isQueued?: boolean;
+  isThinking?: boolean;
 }
 
 export interface AgentPersonality {
@@ -16,17 +18,18 @@ export interface AgentPersonality {
 export interface AgentConfig {
   name: string;
   description: string;
-  systemPrompt: string;
-  temperature: number;
-  maxTokens: number;
-  topP: number;
-  frequencyPenalty: number;
-  presencePenalty: number;
+  personalities: {
+    A: AgentPersonality;
+    B: AgentPersonality;
+  };
 }
 
 export interface ConversationConfig {
   prompt: string;
-  personality: AgentConfig;
-  modelA: string;
-  modelB: string;
+  personality: string;
+  models: {
+    A: string;
+    B: string;
+  };
+  is_continuation?: boolean;
 } 
